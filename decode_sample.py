@@ -1,5 +1,4 @@
-import pyModeS as pms
-from avlc import decode_avlc
+from pyVDL2.avlc import decode_avlc
 import json
 
 frames = []

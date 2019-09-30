@@ -1,5 +1,5 @@
-from acars import decode_acars
-import pyModeS as pms
+from . import common
+from .acars import decode_acars
 
 
 def decode_address(hexaddr):
@@ -14,7 +14,7 @@ def decode_address(hexaddr):
     """
 
     def _decode(hex8):
-        abin = pms.hex2bin(hex8)  # 32 bits
+        abin = common.hex2bin(hex8)  # 32 bits
         newbin = abin[24:31] + abin[16:23] + abin[8:15] + abin[0:6]
         newbin = newbin[::-1]
 
@@ -24,19 +24,19 @@ def decode_address(hexaddr):
             addr_type = "all stations"
             addr_comment = "broadcast"
         elif addr_type_bits == "001":
-            addr = pms.bin2hex(newbin[3:])
+            addr = common.bin2hex(newbin[3:])
             addr_type = "aircraft"
             addr_comment = "ICAO address"
         elif addr_type_bits == "100":
-            addr = pms.bin2hex(newbin[3:])
+            addr = common.bin2hex(newbin[3:])
             addr_type = "ground station"
             addr_comment = "ICAO administered"
         elif addr_type_bits == "101":
-            addr = pms.bin2hex(newbin[3:])
+            addr = common.bin2hex(newbin[3:])
             addr_type = "ground station"
             addr_comment = "ICAO delegated"
         else:
-            addr = pms.bin2hex(newbin[3:])
+            addr = common.bin2hex(newbin[3:])
             addr_type = "reserved"
             addr_comment = "future use"
 
@@ -55,14 +55,14 @@ def decode_linkcontrol(hexlc):
         dict: link control information
 
     """
-    binstr = pms.hex2bin(hexlc)[::-1]
+    binstr = common.hex2bin(hexlc)[::-1]
     if binstr[0] == "0":
         linkcontrol = {
             "raw": binstr,
             "type": "information",
-            "send_sequence": pms.bin2int(binstr[1:4]),
+            "send_sequence": common.bin2int(binstr[1:4]),
             "require_response": bool(int(binstr[4])),
-            "receive_sequence": pms.bin2int(binstr[5:8]),
+            "receive_sequence": common.bin2int(binstr[5:8]),
         }
     else:
         if binstr[1] == "0":
@@ -71,7 +71,7 @@ def decode_linkcontrol(hexlc):
                 "type": "supervisory",
                 "function_bits": binstr[2:4],
                 "require_response": bool(int(binstr[4])),
-                "receive_sequence": pms.bin2int(binstr[5:8]),
+                "receive_sequence": common.bin2int(binstr[5:8]),
             }
         else:
             linkcontrol = {
@@ -106,18 +106,18 @@ def decode_avlc(hexframe):
         general_format = "N/A"
         information = "N/A"
 
-    elif pms.hex2bin(info[0]) == "1111":
+    elif common.hex2bin(info[0]) == "1111":
         # ACARS over AVLC
         data = info[6:]
         general_format = "ACARS"
         information = decode_acars(data)
 
-    elif pms.hex2bin(info[0]) == "0001" and len(info) > 6:
+    elif common.hex2bin(info[0]) == "0001" and len(info) > 6:
         # X.25 (ISO 8208)
-        general_format_identifier = pms.hex2bin(info[0])
-        logical_channel_group_number = pms.hex2bin(info[1])
-        logical_channel_number = pms.hex2bin(info[2:4])
-        packet_data_fields = pms.hex2bin(info[4:6])
+        general_format_identifier = common.hex2bin(info[0])
+        logical_channel_group_number = common.hex2bin(info[1])
+        logical_channel_number = common.hex2bin(info[2:4])
+        packet_data_fields = common.hex2bin(info[4:6])
 
         if packet_data_fields == "00001011":
             packet_type = "call request"

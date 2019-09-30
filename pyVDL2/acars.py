@@ -1,8 +1,8 @@
-import pyModeS as pms
+from . import common
 
 
 def decode_acars(hexstr):
-    databin = pms.hex2bin(hexstr)
+    databin = common.hex2bin(hexstr)
     strchunks = ["0" + databin[i + 1 : i + 8] for i in range(0, len(databin), 8)]
     acars_frame = [int(i, 2).to_bytes(1, "big").decode() for i in strchunks]
     # print(acars_frame)
