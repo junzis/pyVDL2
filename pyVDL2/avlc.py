@@ -60,9 +60,9 @@ def decode_linkcontrol(hexlc):
         linkcontrol = {
             "raw": binstr,
             "type": "information",
-            "send_sequence": common.bin2int(binstr[1:4]),
+            "send_sequence": int(binstr[1:4], 2),
             "require_response": bool(int(binstr[4])),
-            "receive_sequence": common.bin2int(binstr[5:8]),
+            "receive_sequence": int(binstr[5:8], 2),
         }
     else:
         if binstr[1] == "0":
@@ -71,7 +71,7 @@ def decode_linkcontrol(hexlc):
                 "type": "supervisory",
                 "function_bits": binstr[2:4],
                 "require_response": bool(int(binstr[4])),
-                "receive_sequence": common.bin2int(binstr[5:8]),
+                "receive_sequence": int(binstr[5:8], 2),
             }
         else:
             linkcontrol = {
@@ -95,6 +95,9 @@ def decode_avlc(hexframe):
         dict: decoded VDL2 information
 
     """
+    if len(hexframe) < 18:
+        return None
+
     addr = decode_address(hexframe[:16])
     link_control = decode_linkcontrol(hexframe[16:18])
 
@@ -102,9 +105,11 @@ def decode_avlc(hexframe):
     fcs = hexframe[-12:-4]
     flag = hexframe[-4:]
 
-    if not info:
-        general_format = "N/A"
-        information = "N/A"
+    general_format = "N/A"
+    information = info
+
+    if info is None or len(info) < 4:
+        pass
 
     elif common.hex2bin(info[0]) == "1111":
         # ACARS over AVLC
@@ -154,6 +159,9 @@ def decode_avlc(hexframe):
         elif packet_data_fields == "11110001":
             packet_type = "diagnostic"
 
+        else:
+            packet_type = "unknown"
+
         general_format = "X.25"
         information = (
             {
@@ -180,10 +188,6 @@ def decode_avlc(hexframe):
         ):
             general_format = "TEST"
 
-        information = info
-
-    else:
-        general_format = "UNKNOWN"
         information = info
 
     decoded = {

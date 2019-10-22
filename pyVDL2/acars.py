@@ -1,9 +1,13 @@
 from . import common
+import string
+from textwrap import wrap
 
 
 def decode_acars(hexstr):
     databin = common.hex2bin(hexstr)
-    strchunks = ["0" + databin[i + 1 : i + 8] for i in range(0, len(databin), 8)]
+
+    # replace first bit in each octect with "0"
+    strchunks = ["0" + d8[1:] for d8 in wrap(databin, 8)]
     acars_frame = [int(i, 2).to_bytes(1, "big").decode() for i in strchunks]
     # print(acars_frame)
 
@@ -28,6 +32,7 @@ def decode_acars(hexstr):
     flight = "".join(acars_frame[17:23])
 
     msg = "".join(acars_frame[23:])
+    msg_printable = "".join(filter(lambda x: x in string.printable, msg))
 
     res = {
         "mode": acars_frame[0],
@@ -37,7 +42,7 @@ def decode_acars(hexstr):
         "block_id": block_id,
         "msg_num": msg_num,
         "flight": flight,
-        "msg": msg,
+        "msg": msg_printable,
     }
 
     return res
