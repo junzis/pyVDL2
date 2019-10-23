@@ -2,20 +2,23 @@ import numpy as np
 import time
 import logging
 from scipy import signal
-from .datalink import DataLink
+
 from . import common
+from .bitstream import BitStream
 
 # pre-compute constant terms for linear regression in sync search errors
 lr_x = np.arange(16) - np.mean(np.arange(16))
 lr_denom = np.sum(lr_x ** 2)
 err_threshold = 4
 
+bitstream = BitStream()
 
-class VDL2Decoder(object):
-    """docstring for VDL2Decoder."""
+
+class VDL2(object):
+    """docstring for VDL2."""
 
     def __init__(self, sample_rate, channel_freq):
-        super(VDL2Decoder, self).__init__()
+        super(VDL2, self).__init__()
         self.sample_rate = sample_rate
         self.channel_freq = channel_freq
 
@@ -30,8 +33,6 @@ class VDL2Decoder(object):
         self.sync_search_step = max(self.sps // 20, 1)
         self.minimum_noise = 0.02
 
-        self.datalink = DataLink()
-
     def reset_sync_params(self):
         self.sync_start = None
         self.dph_init = None
@@ -40,7 +41,17 @@ class VDL2Decoder(object):
         self.ph_errs = [1e6, 1e6, 1e6]
 
     def process(self, iqdata, t0=None):
-        """Process raw iqdata."""
+        """Process raw iqdata.
+
+        Consists of following steps:
+        1. Searching and synchronizing the signal
+        2. Demodulating the signal in D8PSK format
+        3. Processing the bitstream
+            a. Error checking
+            b. De-scrambleing
+            c. De-interleavering
+            d. De-stuffing
+        """
 
         if t0 is None:
             t0 = time.time()
@@ -74,9 +85,7 @@ class VDL2Decoder(object):
                 continue
 
             # skipping if the header can not be synced within 20 symbols
-            elif (
-                self.search_sync_count > self.sps * 20 / self.sync_search_step
-            ):
+            elif self.search_sync_count > self.sps * 20 / self.sync_search_step:
                 self.idx_curr += self.sps
                 continue
 
@@ -86,10 +95,7 @@ class VDL2Decoder(object):
             # find the sync point
             errvec = np.empty(common.training_len)
             unwrap = 0
-            prev_err = (
-                self.phase[self.idx_curr + self.sps]
-                - common.training_phases[0]
-            )
+            prev_err = self.phase[self.idx_curr + self.sps] - common.training_phases[0]
             errvec[0] = prev_err
 
             for i in range(1, common.training_len):
@@ -114,10 +120,7 @@ class VDL2Decoder(object):
             self.ph_errs[0] = np.sum((lr_y - freq_err * lr_x) ** 2)
 
             # found the sync pattern
-            if (
-                self.ph_errs[1] < err_threshold
-                and self.ph_errs[0] > self.ph_errs[1]
-            ):
+            if self.ph_errs[1] < err_threshold and self.ph_errs[0] > self.ph_errs[1]:
                 # find the sync point where the error is the smallest
                 ls = self._find_min_shift(self.sync_search_step, self.ph_errs)
                 self.sync_start = self.idx_curr - ls
@@ -185,9 +188,9 @@ class VDL2Decoder(object):
         headerbin = "".join([format(c, "03b") for c in header])
 
         # reset LFSR for new message
-        self.datalink.reset_lfsr()
-        headerbin = self.datalink.descramble(headerbin)
-        length = self.datalink.getlen(headerbin)  # number of bit
+        bitstream.reset_lfsr()
+        headerbin = bitstream.descramble(headerbin)
+        length = bitstream.getlen(headerbin)  # number of bit
 
         if length is None:
             return None
@@ -214,9 +217,9 @@ class VDL2Decoder(object):
             databin = "".join([format(c, "03b") for c in data])
 
             # join with left over from header octects
-            databin = headerbin[-2:] + self.datalink.descramble(databin)
+            databin = headerbin[-2:] + bitstream.descramble(databin)
 
-            msg_decoded = self.datalink.decode_data(length, databin)
+            msg_decoded = bitstream.decode_data(length, databin)
 
             if msg_decoded is not None:
                 self.idx_curr = dataend

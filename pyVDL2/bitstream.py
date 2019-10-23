@@ -7,17 +7,15 @@ from . import common
 from .librs import RSCodec
 
 
-max_len = 0x3FFF
-max_len_corrected = 0x1FFF
-
-
-class DataLink(object):
-    """docstring for DataLink."""
+class BitStream(object):
+    """docstring for BitStream."""
 
     def __init__(self):
-        super(DataLink, self).__init__()
+        super(BitStream, self).__init__()
         # linear-feedback shift register
         self.rscodec = RSCodec(nsym=6, nsize=255, fcr=120, prim=0x187)
+        self.max_len = 0x3FFF
+        self.max_len_corrected = 0x1FFF
 
     def reset_lfsr(self):
         self.lfsr = [1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1]
@@ -31,11 +29,9 @@ class DataLink(object):
         logging.debug("FEC: {}".format(header0[20:25]))
 
         length0 = int(header0[3:20][::-1], 2)
-        logging.debug(
-            "Transmission length (before correction): {}".format(length0)
-        )
+        logging.debug("Transmission length (before correction): {}".format(length0))
 
-        if length0 > max_len:
+        if length0 > self.max_len:
             logging.debug("Message length seems too long, should not decode.")
             length = None
 
@@ -43,12 +39,10 @@ class DataLink(object):
 
         length = int(header[3:20][::-1], 2)
         logging.debug("FEC syndrome: {}".format(syndrome))
-        logging.debug(
-            "Transmission length (after correction): {}".format(length)
-        )
+        logging.debug("Transmission length (after correction): {}".format(length))
 
         # drop frame with very large length
-        if syndrome > 0 and length > max_len_corrected:
+        if syndrome > 0 and length > self.max_len_corrected:
             logging.debug("Message length seems too long, should not decode.")
             length = None
 
@@ -120,14 +114,10 @@ class DataLink(object):
                 try:
                     corrected = self.rscodec.decode(block, erase_pos=erasure)
                     logging.debug("RS check, block {}, success".format(i + 1))
-                    logging.debug(
-                        "After RS check:\n" + common.dumphex(corrected)
-                    )
+                    logging.debug("After RS check:\n" + common.dumphex(corrected))
                     msgints.extend(corrected[:size])
                 except Exception as err:
-                    logging.debug(
-                        "RS check, block {}, error: {}".format(i + 1, err)
-                    )
+                    logging.debug("RS check, block {}, error: {}".format(i + 1, err))
                     error = True
                     pass
 
@@ -135,9 +125,7 @@ class DataLink(object):
             return None
 
         else:
-            msg_stuffed = "".join(
-                [format(i, "08b")[::-1] for i in msgints[1:]]
-            )
+            msg_stuffed = "".join([format(i, "08b")[::-1] for i in msgints[1:]])
             msg_unstuff = msg_stuffed[: length - 8].replace("111110", "11111")
             message = "".join([b8[::-1] for b8 in wrap(msg_unstuff, 8)])
 
